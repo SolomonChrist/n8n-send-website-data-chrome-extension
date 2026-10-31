@@ -8,6 +8,15 @@ A fast, lightweight Chrome Extension (Manifest V3) that sends **passive, non-scr
 
 ---
 
+## How to Load It in Chrome Right Now
+
+1. Open Chrome and go to `chrome://extensions/`
+2. Toggle **Developer mode** ON (top-right corner).
+3. Click **Load unpacked** (top-left) and select your project folder (for example, the folder where you cloned or downloaded `ai-n8n-send-website-chrome-extension`).
+4. Click the **Extensions puzzle icon** in Chrome's toolbar, **Pin** **AI n8n Send Website Data**, click it to open **Settings**, and paste your **n8n Webhook URL**.
+
+---
+
 ## Key Features
 
 - **One-Click Website Metadata + Notes to n8n**: Click the pinned extension icon on any open tab, add optional notes or tags, and send everything as clean JSON to your n8n Webhook (`POST`). Includes an optional **One-Click Auto-Send** mode in Settings.
@@ -21,22 +30,6 @@ A fast, lightweight Chrome Extension (Manifest V3) that sends **passive, non-scr
   - Every send attempt (both `Sent` and `Failed`) is automatically backed up to `chrome.storage.local` on your system.
   - Browse, search, inspect the exact JSON payload, **Resend/Retry** any item to n8n, or **Export** your entire history as a `.json` backup file (`n8n-website-history-backup-YYYY-MM-DD.json`).
   - Includes a **Full-Page History Viewer** (`history.html`) and a **Reset / Delete History** option in Settings protected by an explicit two-step confirmation prompt.
-
----
-
-## How to Install in Chrome (Load Unpacked)
-
-1. Clone or download this repository to your computer:
-   ```bash
-   git clone https://github.com/SolomonChrist/n8n-send-website-data-chrome-extension.git
-   ```
-2. Open Google Chrome and navigate to:
-   ```text
-   chrome://extensions/
-   ```
-3. Enable **Developer mode** using the toggle in the top-right corner.
-4. Click **Load unpacked** (top-left) and select the `ai-n8n-send-website-chrome-extension` folder.
-5. Click the **Extensions puzzle icon** in your Chrome toolbar and **Pin** **AI n8n Send Website Data** for one-click access.
 
 ---
 
@@ -126,6 +119,18 @@ A fast, lightweight Chrome Extension (Manifest V3) that sends **passive, non-scr
 
 ---
 
+## Legal Disclaimer & Limitation of Liability ("AS IS")
+
+> **IMPORTANT — PLEASE READ CAREFULLY BEFORE USING THIS SOFTWARE:**
+>
+> This software and all accompanying files, documentation, and materials are provided strictly **"AS IS"** and **"AS AVAILABLE"**, without warranty, representation, or guarantee of any kind, whether express, implied, or statutory, including but not limited to the warranties of merchantability, fitness for a particular purpose, title, accuracy, security, and non-infringement.
+>
+> **Use at Your Own Risk:** By downloading, installing, modifying, or using this Chrome extension, you acknowledge and agree that you do so entirely at your own risk and discretion. You are solely responsible for ensuring that your use of this software, the webhooks you configure, and any data you transmit or store comply with all applicable local, state, national, and international laws, regulations, privacy policies, and third-party website Terms of Service.
+>
+> **No Liability:** In no event shall the author (**Solomon Christ**), contributors, or copyright holders be liable for any direct, indirect, incidental, special, exemplary, punitive, or consequential damages (including, without limitation, loss of data, loss of profits, business interruption, account suspension, network restrictions, or legal claims of any kind) arising out of or in any way connected with the use, misuse, or inability to use this software, even if advised of the possibility of such damages.
+
+---
+
 ## License
 
-MIT License
+Licensed under the **MIT License** (see the [LICENSE](LICENSE) file for the full license text and "AS IS" warranty disclaimer).
