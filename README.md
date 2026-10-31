@@ -1,5 +1,9 @@
 # AI n8n Send Website Data — Chrome Extension
 
+<p align="center">
+  <img src="icons/logo-square.jpg" alt="Solomon Christ Logo" width="180" style="border-radius: 14px;" />
+</p>
+
 A fast, lightweight Chrome Extension (Manifest V3) that sends **passive, non-scraping website metadata** and your **personal notes/tags** from any open tab directly to an **n8n Workflow Webhook** as structured JSON—while maintaining a complete **local backup history** on your machine.
 
 ---
