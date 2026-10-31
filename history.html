@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Local Backup History - AI n8n Send Website Data</title>
+  <link rel="stylesheet" href="popup.css" />
+  <style>
+    body {
+      width: 100%;
+      max-width: 1120px;
+      min-height: 100vh;
+      max-height: none;
+      margin: 0 auto;
+      padding: 28px 20px;
+    }
+    .full-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--border-color);
+      margin-bottom: 20px;
+    }
+    .full-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .full-toolbar {
+      display: grid;
+      grid-template-columns: 1fr 160px;
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+    .history-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+      gap: 14px;
+    }
+    .modal-card {
+      max-width: 680px;
+    }
+    .modal-json {
+      max-height: 65vh;
+    }
+  </style>
+</head>
+<body>
+  <header class="full-header">
+    <div class="brand">
+      <div class="brand-logo">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M22 2L11 13"></path>
+          <path d="M22 2L15 22L11 13L2 9L22 2Z"></path>
+        </svg>
+      </div>
+      <div>
+        <h1 class="brand-title" style="font-size: 18px;">n8n Website Sender &mdash; Local Backup History</h1>
+        <span class="brand-subtitle" id="fullCountSubtitle">0 items stored locally on this system</span>
+      </div>
+    </div>
+
+    <div class="full-controls">
+      <button id="fullExportBtn" class="secondary-btn" type="button">Download Backup (.json)</button>
+      <button id="fullInitiateResetBtn" class="danger-btn" type="button">Reset / Delete All History</button>
+    </div>
+  </header>
+
+  <!-- Two-Step Confirmation Box -->
+  <div id="fullClearConfirmBox" class="confirm-box hidden" style="margin-bottom: 18px;">
+    <p class="confirm-warning">
+      <strong>Are you sure you want to permanently delete all <span id="fullConfirmCount">0</span> local history items?</strong>
+      This will reset your local backup history and cannot be undone.
+    </p>
+    <div class="confirm-actions">
+      <button type="button" id="fullConfirmResetBtn" class="danger-solid-btn">Yes, Permanently Delete All</button>
+      <button type="button" id="fullCancelResetBtn" class="secondary-btn">Cancel</button>
+    </div>
+  </div>
+
+  <div id="fullStatusBanner" class="status-banner hidden" style="margin-bottom: 16px;">
+    <div class="status-banner-content">
+      <span id="fullStatusIcon"></span>
+      <div class="status-text-wrap">
+        <strong id="fullStatusTitle"></strong>
+        <p id="fullStatusMsg"></p>
+      </div>
+    </div>
+    <button id="fullCloseBannerBtn" class="icon-close-btn">&times;</button>
+  </div>
+
+  <div class="full-toolbar">
+    <input type="search" id="fullSearchInput" placeholder="Search by page title, URL, domain, notes, or tags..." />
+    <select id="fullFilterSelect">
+      <option value="all">All Statuses</option>
+      <option value="success">Sent (Success)</option>
+      <option value="failed">Failed</option>
+    </select>
+  </div>
+
+  <div id="fullHistoryGrid" class="history-grid"></div>
+
+  <!-- JSON Modal -->
+  <div id="fullModal" class="modal-overlay hidden">
+    <div class="modal-card">
+      <div class="modal-header">
+        <h3 id="fullModalTitle">Website Payload JSON</h3>
+        <button id="fullCloseModalBtn" class="icon-close-btn">&times;</button>
+      </div>
+      <pre id="fullModalJson" class="json-code modal-json"></pre>
+      <div class="modal-footer">
+        <button id="fullCopyJsonBtn" class="secondary-btn" type="button">Copy JSON</button>
+        <button id="fullCloseModalFooterBtn" class="primary-btn" type="button">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="history.js"></script>
+</body>
+</html>

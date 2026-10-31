@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AI n8n Send Website Data</title>
+  <link rel="stylesheet" href="popup.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- Top Header -->
+    <header class="app-header">
+      <div class="brand">
+        <div class="brand-logo" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M22 2L11 13"></path>
+            <path d="M22 2L15 22L11 13L2 9L22 2Z"></path>
+          </svg>
+        </div>
+        <div>
+          <h1 class="brand-title">n8n Website Sender</h1>
+          <span class="brand-subtitle">Passive Metadata &bull; Zero Scraping</span>
+        </div>
+      </div>
+      <div id="webhookStatusPill" class="webhook-pill unconfigured" title="Click to configure n8n Webhook">
+        <span class="dot"></span>
+        <span id="webhookPillText">No Webhook</span>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs -->
+    <nav class="tab-nav" role="tablist">
+      <button class="tab-btn active" data-tab="sendTab" role="tab" aria-selected="true">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+        Send
+      </button>
+      <button class="tab-btn" data-tab="historyTab" role="tab" aria-selected="false">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+        History
+        <span id="historyCountBadge" class="badge">0</span>
+      </button>
+      <button class="tab-btn" data-tab="settingsTab" role="tab" aria-selected="false">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        Settings
+      </button>
+    </nav>
+
+    <!-- Status Notification Banner -->
+    <div id="statusBanner" class="status-banner hidden" role="alert">
+      <div class="status-banner-content">
+        <span id="statusBannerIcon" class="status-icon"></span>
+        <div class="status-text-wrap">
+          <strong id="statusBannerTitle"></strong>
+          <p id="statusBannerMessage"></p>
+        </div>
+      </div>
+      <button id="closeBannerBtn" class="icon-close-btn" title="Dismiss">&times;</button>
+    </div>
+
+    <!-- ==================== TAB 1: SEND ==================== -->
+    <main id="sendTab" class="tab-panel active">
+      <!-- Current Website Card -->
+      <section class="site-card">
+        <div class="site-card-header">
+          <img id="siteFavicon" class="site-favicon" src="icons/icon48.png" alt="Favicon" />
+          <div class="site-info">
+            <h2 id="siteTitle" class="site-title">Reading active tab metadata...</h2>
+            <p id="siteUrl" class="site-url">https://...</p>
+          </div>
+        </div>
+        <p id="siteDescription" class="site-desc hidden"></p>
+
+        <div class="metadata-summary-bar">
+          <div class="meta-chips" id="metaChips">
+            <span class="chip">0 Meta Tags</span>
+            <span class="chip">0 OpenGraph</span>
+            <span class="chip">0 JSON-LD</span>
+          </div>
+          <button id="toggleJsonPreviewBtn" class="link-btn" type="button">
+            Preview JSON
+          </button>
+        </div>
+
+        <div id="jsonPreviewContainer" class="json-preview-container hidden">
+          <div class="json-preview-toolbar">
+            <span>Allowed Passive Metadata Payload</span>
+            <button id="copyJsonPreviewBtn" class="mini-btn" type="button">Copy JSON</button>
+          </div>
+          <pre id="jsonPreviewCode" class="json-code"></pre>
+        </div>
+      </section>
+
+      <!-- Selected Text Highlight (if user highlighted text on page) -->
+      <section id="selectedTextSection" class="selected-text-box hidden">
+        <div class="section-label-row">
+          <label>Highlighted Selection on Page</label>
+          <button id="clearSelectionBtn" class="link-btn" type="button">Remove</button>
+        </div>
+        <blockquote id="selectedTextPreview" class="selected-quote"></blockquote>
+      </section>
+
+      <!-- Notes & Tags Form -->
+      <form id="sendForm" class="send-form">
+        <div class="form-group">
+          <div class="section-label-row">
+            <label for="userNotes">Your Notes / Context for n8n</label>
+            <span class="hint-text">Ctrl+Enter to send</span>
+          </div>
+          <textarea
+            id="userNotes"
+            rows="3"
+            placeholder="Add any notes, instructions, or context to send alongside this website's metadata..."
+          ></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="userTags">Quick Tags <span class="optional-tag">(optional, comma-separated)</span></label>
+          <input
+            type="text"
+            id="userTags"
+            placeholder="e.g. research, lead, inspiration, ai"
+            autocomplete="off"
+          />
+        </div>
+
+        <button type="submit" id="sendBtn" class="primary-send-btn">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="22" y1="2" x2="11" y2="13"></line>
+            <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+          </svg>
+          <span id="sendBtnText">Send Website Data to n8n</span>
+        </button>
+      </form>
+    </main>
+
+    <!-- ==================== TAB 2: HISTORY ==================== -->
+    <section id="historyTab" class="tab-panel">
+      <div class="history-toolbar">
+        <input
+          type="search"
+          id="historySearchInput"
+          class="search-input"
+          placeholder="Search title, URL, notes, tags..."
+        />
+        <select id="historyFilterSelect" class="filter-select" title="Filter by delivery status">
+          <option value="all">All</option>
+          <option value="success">Sent</option>
+          <option value="failed">Failed</option>
+        </select>
+      </div>
+
+      <div class="history-actions-bar">
+        <span id="historySummaryText" class="history-summary">0 items backed up locally</span>
+        <div class="history-action-btns">
+          <button id="exportHistoryBtn" class="secondary-sm-btn" type="button" title="Download JSON backup file">
+            Export JSON
+          </button>
+          <button id="openFullHistoryBtn" class="secondary-sm-btn" type="button" title="Open full-page history viewer">
+            Full View &#8599;
+          </button>
+        </div>
+      </div>
+
+      <div id="historyList" class="history-list">
+        <!-- Populated dynamically by popup.js -->
+      </div>
+    </section>
+
+    <!-- ==================== TAB 3: SETTINGS ==================== -->
+    <section id="settingsTab" class="tab-panel">
+      <form id="settingsForm" class="settings-form">
+        <div class="settings-card">
+          <h3 class="settings-section-title">n8n Workflow Webhook</h3>
+          <div class="form-group">
+            <label for="webhookUrlInput">Webhook Endpoint URL (POST)</label>
+            <input
+              type="url"
+              id="webhookUrlInput"
+              placeholder="https://your-n8n.instance/webhook/xxxx-xxxx"
+              required
+            />
+            <small class="help-text">Supports both Production (<code>/webhook/...</code>) and Test (<code>/webhook-test/...</code>) URLs.</small>
+          </div>
+
+          <div class="form-row-2">
+            <div class="form-group">
+              <label for="customHeaderNameInput">Auth Header Name <span class="optional-tag">(optional)</span></label>
+              <input
+                type="text"
+                id="customHeaderNameInput"
+                placeholder="Authorization or X-API-Key"
+              />
+            </div>
+            <div class="form-group">
+              <label for="customHeaderValueInput">Auth Header Value <span class="optional-tag">(optional)</span></label>
+              <input
+                type="password"
+                id="customHeaderValueInput"
+                placeholder="Bearer secret-token..."
+              />
+            </div>
+          </div>
+
+          <div class="form-group checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox" id="autoSendCheckbox" />
+              <span><strong>One-Click Auto-Send on Popup Open</strong> (immediately sends website data when you click the extension icon)</span>
+            </label>
+          </div>
+
+          <div class="settings-btn-row">
+            <button type="submit" id="saveSettingsBtn" class="primary-btn">Save Settings</button>
+            <button type="button" id="testWebhookBtn" class="secondary-btn">Test Webhook</button>
+          </div>
+        </div>
+      </form>
+
+      <!-- Local Backup & Reset Danger Zone -->
+      <div class="settings-card danger-card">
+        <h3 class="settings-section-title danger-title">Local Backup History Management</h3>
+        <p class="help-text">
+          All sent items are automatically backed up locally on your computer. You can export your history as JSON or reset it completely.
+        </p>
+        <div class="settings-btn-row" style="margin-top: 10px;">
+          <button type="button" id="settingsExportBtn" class="secondary-btn">Download Backup (.json)</button>
+          <button type="button" id="initiateClearHistoryBtn" class="danger-btn">Reset / Delete History</button>
+        </div>
+
+        <!-- Two-Step Confirmation Prompt (Hidden until user clicks Reset/Delete) -->
+        <div id="clearConfirmBox" class="confirm-box hidden">
+          <p class="confirm-warning">
+            <strong>Are you sure you want to permanently delete all <span id="confirmDeleteCount">0</span> local history items?</strong>
+            This action will reset your local backup history and cannot be undone.
+          </p>
+          <div class="confirm-actions">
+            <button type="button" id="confirmClearHistoryBtn" class="danger-solid-btn">Yes, Permanently Delete All</button>
+            <button type="button" id="cancelClearHistoryBtn" class="secondary-btn">Cancel</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Modal for inspecting a single History Item's JSON -->
+    <div id="historyModal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3 id="modalTitle">History Item Payload</h3>
+          <button id="closeModalBtn" class="icon-close-btn">&times;</button>
+        </div>
+        <pre id="modalJsonContent" class="json-code modal-json"></pre>
+        <div class="modal-footer">
+          <button id="copyModalJsonBtn" class="secondary-btn" type="button">Copy JSON</button>
+          <button id="closeModalFooterBtn" class="primary-btn" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

@@ -1,0 +1,30 @@
+{
+  "manifest_version": 3,
+  "name": "AI n8n Send Website Data",
+  "short_name": "n8n Send",
+  "version": "1.0.0",
+  "description": "One-click send passive, non-scraping website metadata, structured head tags, and personal notes as JSON to any n8n Webhook with local backup history.",
+  "permissions": [
+    "activeTab",
+    "scripting",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*/*",
+    "http://*/*"
+  ],
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Send Website Metadata & Notes to n8n",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
