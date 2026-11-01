@@ -578,25 +578,24 @@ textarea {
 }
 
 .disclosure-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
 }
 
 .disclosure-btn {
-  flex: 1;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 6px;
+  gap: 5px;
   background: var(--bg-card);
   color: var(--text-secondary);
   border: 1px solid var(--border-color);
   border-radius: var(--radius-sm);
-  padding: 6px 10px;
-  font-size: 11.5px;
+  padding: 6px 6px;
+  font-size: 11px;
   font-weight: 600;
+  white-space: nowrap;
   cursor: pointer;
   box-shadow: var(--shadow-xs);
   transition: all 0.15s ease;
@@ -693,6 +692,37 @@ textarea {
   border-top: 1px solid var(--border-color);
   font-size: 10.5px;
   color: var(--text-muted);
+}
+
+.all-expr-box {
+  padding: 8px 10px;
+  background: var(--bg-muted);
+  border-top: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.all-expr-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.all-expr-textarea {
+  font-family: "Cascadia Code", Consolas, Monaco, monospace;
+  font-size: 10.5px;
+  line-height: 1.4;
+  background: var(--bg-card);
+  color: var(--text-primary);
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  padding: 6px 8px;
+  min-height: 76px;
+  resize: vertical;
 }
 
 .meta-chips {

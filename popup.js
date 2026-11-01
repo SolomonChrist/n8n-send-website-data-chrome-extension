@@ -287,12 +287,61 @@ function setupEventListeners() {
       if (!expr) return;
       await navigator.clipboard.writeText(expr);
       const toast = document.getElementById('exprCopyFeedback');
-      toast.textContent = `Copied ${expr}`;
+      toast.textContent = 'Copied!';
       toast.classList.remove('hidden');
       setTimeout(() => {
         toast.classList.add('hidden');
       }, 1800);
     });
+  });
+
+  // Helper to copy the entire n8n Expressions AI prompt block
+  const copyEntireExpressionsBlock = async () => {
+    const textarea = document.getElementById('allExpressionsTextarea');
+    const blockText = textarea ? textarea.value : '';
+    if (!blockText) return;
+    await navigator.clipboard.writeText(blockText);
+    if (textarea) {
+      textarea.select();
+    }
+  };
+
+  // 3rd Top Bar Button: Copy All for AI
+  document.getElementById('copyAllExpressionsBtn').addEventListener('click', async () => {
+    await copyEntireExpressionsBlock();
+    const span = document.getElementById('copyAllExpressionsText');
+    const btn = document.getElementById('copyAllExpressionsBtn');
+    span.textContent = 'Copied All!';
+    btn.classList.add('active');
+    setTimeout(() => {
+      span.textContent = 'Copy All for AI';
+      btn.classList.remove('active');
+    }, 1800);
+  });
+
+  // Drawer Header Button: Copy Entire Block
+  document.getElementById('copyAllDrawerBtn').addEventListener('click', async () => {
+    await copyEntireExpressionsBlock();
+    const btn = document.getElementById('copyAllDrawerBtn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => {
+      btn.textContent = 'Copy Entire Block';
+    }, 1800);
+  });
+
+  // Textarea Header Button: Copy Block
+  document.getElementById('copyAiTemplateBtn').addEventListener('click', async () => {
+    await copyEntireExpressionsBlock();
+    const btn = document.getElementById('copyAiTemplateBtn');
+    btn.textContent = 'Copied!';
+    setTimeout(() => {
+      btn.textContent = 'Copy Block';
+    }, 1800);
+  });
+
+  // Auto-select all text when clicking inside the Ready-to-Paste n8n AI Node Block textarea
+  document.getElementById('allExpressionsTextarea').addEventListener('click', (e) => {
+    e.target.select();
   });
 
   // Toggle JSON preview Drawer

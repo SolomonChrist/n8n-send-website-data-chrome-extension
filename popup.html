@@ -107,14 +107,18 @@
         </button>
       </form>
 
-      <!-- Progressive Disclosure Bar: n8n Expression Cheatsheet & JSON Payload Preview -->
+      <!-- Progressive Disclosure Bar: n8n Expression Cheatsheet, Copy All for AI Node, & JSON Payload Preview -->
       <section class="developer-tools">
         <div class="disclosure-bar">
-          <button id="toggleCheatsheetBtn" class="disclosure-btn" type="button" aria-expanded="false">
+          <button id="toggleCheatsheetBtn" class="disclosure-btn" type="button" aria-expanded="false" title="View individual n8n expressions">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
             <span id="toggleCheatsheetText">n8n Expressions</span>
           </button>
-          <button id="toggleJsonPreviewBtn" class="disclosure-btn" type="button" aria-expanded="false">
+          <button id="copyAllExpressionsBtn" class="disclosure-btn" type="button" title="Copy the entire n8n Expression block to paste directly into an n8n AI node">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+            <span id="copyAllExpressionsText">Copy All for AI</span>
+          </button>
+          <button id="toggleJsonPreviewBtn" class="disclosure-btn" type="button" aria-expanded="false" title="Preview live JSON payload">
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
             <span id="toggleJsonPreviewText">Preview JSON</span>
           </button>
@@ -123,8 +127,11 @@
         <!-- Drawer 1: One-Click Copy n8n Expression Cheatsheet -->
         <div id="cheatsheetContainer" class="drawer-card hidden">
           <div class="drawer-header">
-            <span class="drawer-title">Click any expression to copy for your n8n node</span>
-            <span id="exprCopyFeedback" class="copy-toast hidden">Copied!</span>
+            <span class="drawer-title">Click any row to copy, or copy the entire block</span>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span id="exprCopyFeedback" class="copy-toast hidden">Copied!</span>
+              <button id="copyAllDrawerBtn" class="mini-btn" type="button">Copy Entire Block</button>
+            </div>
           </div>
           <div class="expr-list">
             <button type="button" class="expr-row" data-expr="{{ $json.body.page.url }}">
@@ -163,6 +170,25 @@
               <span class="expr-label">Timestamp</span>
               <code class="expr-code">{{ $json.body.sentAt }}</code>
             </button>
+            <button type="button" class="expr-row" data-expr="{{ JSON.stringify($json.body) }}">
+              <span class="expr-label">Full Payload JSON</span>
+              <code class="expr-code">{{ JSON.stringify($json.body) }}</code>
+            </button>
+          </div>
+          <div class="all-expr-box">
+            <div class="all-expr-header">
+              <span>Ready-to-Paste n8n AI Node Block (Copy &amp; Paste)</span>
+              <button id="copyAiTemplateBtn" class="mini-btn" type="button">Copy Block</button>
+            </div>
+            <textarea id="allExpressionsTextarea" class="all-expr-textarea" rows="5" readonly>Website URL: {{ $json.body.page.url }}
+Page Title: {{ $json.body.page.title }}
+Social/OG Title: {{ $json.body.openGraph.title }}
+User Notes: {{ $json.body.userNotes }}
+User Tags: {{ $json.body.userTags.join(', ') }}
+Meta Description: {{ $json.body.meta.description }}
+Highlighted Text: {{ $json.body.selectedText }}
+Domain: {{ $json.body.page.domain }}
+Sent At: {{ $json.body.sentAt }}</textarea>
           </div>
           <div class="drawer-footnote">
             Using a GET Webhook node? Use <code>$json.query.url</code> or <code>$json.query.userNotes</code>.
