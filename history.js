@@ -7,6 +7,9 @@ const STORAGE_KEYS = {
   HISTORY: 'n8n_sender_history'
 };
 
+const HEADER_NAME_REGEX = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
+const FORBIDDEN_HEADERS = new Set(['host', 'cookie', 'content-length', 'origin', 'referer']);
+
 let historyItems = [];
 let currentSettings = {};
 
@@ -72,9 +75,31 @@ function setupListeners() {
 }
 
 function escapeHtml(str) {
-  const div = document.createElement('div');
-  div.textContent = str || '';
-  return div.innerHTML;
+  return String(str ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function sanitizeHttpUrl(rawUrl) {
+  try {
+    const parsed = new URL(String(rawUrl || ''));
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.href;
+    }
+  } catch (_) {}
+  return '#';
+}
+
+function isValidHeaderName(name) {
+  if (!name) return true;
+  return HEADER_NAME_REGEX.test(name) && !FORBIDDEN_HEADERS.has(name.toLowerCase());
+}
+
+function sanitizeHeaderValue(val) {
+  return String(val ?? '').replace(/[\r\n\0]+/g, '').trim();
 }
 
 function renderGrid() {
@@ -103,7 +128,9 @@ function renderGrid() {
 
   grid.innerHTML = filtered.map((item) => {
     const title = escapeHtml(item.payload?.page?.title || 'Untitled Website');
-    const url = escapeHtml(item.payload?.page?.url || '');
+    const rawUrl = item.payload?.page?.url || '';
+    const safeHref = escapeHtml(sanitizeHttpUrl(rawUrl));
+    const displayUrl = escapeHtml(rawUrl);
     const notes = escapeHtml(item.payload?.userNotes || '');
     const tags = (item.payload?.userTags || []).map((t) => `<span class="chip">#${escapeHtml(t)}</span>`).join(' ');
     const dateStr = new Date(item.timestamp).toLocaleString();
@@ -114,7 +141,7 @@ function renderGrid() {
         <div class="history-item-top">
           <div style="min-width:0; flex:1;">
             <div class="history-item-title" title="${title}">${title}</div>
-            <a class="history-item-url" href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>
+            <a class="history-item-url" href="${safeHref}" target="_blank" rel="noopener noreferrer" title="${displayUrl}">${displayUrl}</a>
           </div>
           <span class="status-tag ${item.status === 'success' ? 'success' : 'failed'}">${statusLabel}</span>
         </div>
@@ -156,6 +183,71 @@ function closeModal() {
   document.getElementById('fullModal').classList.add('hidden');
 }
 
+function parseN8nErrorMessage(status, statusText, responseText) {
+  let baseMsg = `HTTP ${status} (${statusText || 'Error'})`;
+  if (!responseText) return baseMsg;
+  try {
+    const parsed = JSON.parse(responseText);
+    const n8nMsg = parsed.message || '';
+    const n8nHint = parsed.hint || '';
+    if (n8nMsg || n8nHint) {
+      return `HTTP ${status}: ${n8nMsg}${n8nHint ? ' — ' + n8nHint : ''}`;
+    }
+  } catch (_) {}
+  return baseMsg;
+}
+
+function buildGetWebhookUrl(webhookUrl, payload) {
+  const urlObj = new URL(webhookUrl);
+  urlObj.searchParams.set('event', payload.event || 'website_capture');
+  urlObj.searchParams.set('sentAt', payload.sentAt || new Date().toISOString());
+  urlObj.searchParams.set('title', payload.page?.title || '');
+  urlObj.searchParams.set('url', payload.page?.url || '');
+  urlObj.searchParams.set('domain', payload.page?.domain || '');
+  urlObj.searchParams.set('description', (payload.meta?.description || '').slice(0, 500));
+  urlObj.searchParams.set('userNotes', payload.userNotes || '');
+  urlObj.searchParams.set('userTags', (payload.userTags || []).join(','));
+  urlObj.searchParams.set('selectedText', (payload.selectedText || '').slice(0, 500));
+
+  let serializedPayload = JSON.stringify(payload);
+  if (serializedPayload.length > 3000) {
+    const compactPayload = {
+      ...payload,
+      structuredData: [],
+      meta: { ...(payload.meta || {}), allMetaTags: {} },
+      payloadTruncatedForGet: true
+    };
+    serializedPayload = JSON.stringify(compactPayload).slice(0, 3500);
+  }
+  urlObj.searchParams.set('payload_json', serializedPayload);
+  return urlObj.toString();
+}
+
+async function executeSingleRequest(webhookUrl, method, payload, headers, signal) {
+  if (method === 'GET') {
+    const getUrl = buildGetWebhookUrl(webhookUrl, payload);
+    const getHeaders = { ...headers };
+    delete getHeaders['Content-Type'];
+    return fetch(getUrl, {
+      method: 'GET',
+      headers: getHeaders,
+      credentials: 'omit',
+      cache: 'no-store',
+      referrerPolicy: 'no-referrer',
+      signal
+    });
+  }
+  return fetch(webhookUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+    credentials: 'omit',
+    cache: 'no-store',
+    referrerPolicy: 'no-referrer',
+    signal
+  });
+}
+
 async function resendItem(id) {
   const item = historyItems.find((i) => i.id === id);
   if (!item) return;
@@ -165,20 +257,40 @@ async function resendItem(id) {
     return;
   }
 
-  const headers = { 'Content-Type': 'application/json' };
-  if (currentSettings.customHeaderName && currentSettings.customHeaderValue) {
-    headers[currentSettings.customHeaderName] = currentSettings.customHeaderValue;
+  const headers = {
+    'Content-Type': 'application/json',
+    'Accept': 'application/json, text/plain, */*'
+  };
+  const hdrName = (currentSettings.customHeaderName || '').trim();
+  const hdrVal = sanitizeHeaderValue(currentSettings.customHeaderValue);
+  if (hdrName && hdrVal && isValidHeaderName(hdrName)) {
+    headers[hdrName] = hdrVal;
   }
 
+  const preferredMethod = currentSettings.webhookMethod || 'AUTO';
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), 12000);
+
   try {
-    const res = await fetch(webhookUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(item.payload)
-    });
+    const initialMethod = preferredMethod === 'GET' ? 'GET' : 'POST';
+    let res = await executeSingleRequest(webhookUrl, initialMethod, item.payload, headers, controller.signal);
+    let responseText = await res.text();
+
+    if (
+      !res.ok &&
+      res.status === 404 &&
+      preferredMethod === 'AUTO' &&
+      initialMethod === 'POST' &&
+      /not registered for POST/i.test(responseText)
+    ) {
+      res = await executeSingleRequest(webhookUrl, 'GET', item.payload, headers, controller.signal);
+      responseText = await res.text();
+    }
+
+    clearTimeout(timeoutId);
     item.status = res.ok ? 'success' : 'failed';
     item.httpStatus = res.status;
-    item.errorMessage = res.ok ? null : `HTTP ${res.status} (${res.statusText})`;
+    item.errorMessage = res.ok ? null : parseN8nErrorMessage(res.status, res.statusText, responseText);
     await chrome.storage.local.set({ [STORAGE_KEYS.HISTORY]: historyItems });
     renderGrid();
 
@@ -188,8 +300,11 @@ async function resendItem(id) {
       showBanner('error', 'Webhook Returned Error', item.errorMessage);
     }
   } catch (err) {
+    clearTimeout(timeoutId);
     item.status = 'failed';
-    item.errorMessage = err.message || 'Webhook unreachable';
+    item.errorMessage = err.name === 'AbortError'
+      ? 'Webhook timed out after 12 seconds.'
+      : (err.message || 'Webhook unreachable');
     await chrome.storage.local.set({ [STORAGE_KEYS.HISTORY]: historyItems });
     renderGrid();
     showBanner('error', 'Webhook Unreachable', item.errorMessage);

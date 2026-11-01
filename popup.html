@@ -16,28 +16,25 @@
         </div>
         <div>
           <h1 class="brand-title">n8n Website Sender</h1>
-          <span class="brand-subtitle">Solomon Christ &bull; Zero Scraping</span>
+          <span class="brand-subtitle">Solomon Christ</span>
         </div>
       </div>
       <div id="webhookStatusPill" class="webhook-pill unconfigured" title="Click to configure n8n Webhook">
         <span class="dot"></span>
-        <span id="webhookPillText">No Webhook</span>
+        <span id="webhookPillText">Set Webhook</span>
       </div>
     </header>
 
-    <!-- Navigation Tabs -->
+    <!-- Navigation Tabs (shadcn segmented control) -->
     <nav class="tab-nav" role="tablist">
       <button class="tab-btn active" data-tab="sendTab" role="tab" aria-selected="true">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
         Send
       </button>
       <button class="tab-btn" data-tab="historyTab" role="tab" aria-selected="false">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
         History
         <span id="historyCountBadge" class="badge">0</span>
       </button>
       <button class="tab-btn" data-tab="settingsTab" role="tab" aria-selected="false">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
         Settings
       </button>
     </nav>
@@ -56,78 +53,135 @@
 
     <!-- ==================== TAB 1: SEND ==================== -->
     <main id="sendTab" class="tab-panel active">
-      <!-- Current Website Card -->
+      <!-- Clean Website Card -->
       <section class="site-card">
         <div class="site-card-header">
           <img id="siteFavicon" class="site-favicon" src="icons/icon48.png" alt="Favicon" />
           <div class="site-info">
-            <h2 id="siteTitle" class="site-title">Reading active tab metadata...</h2>
+            <h2 id="siteTitle" class="site-title">Reading active tab...</h2>
             <p id="siteUrl" class="site-url">https://...</p>
           </div>
         </div>
         <p id="siteDescription" class="site-desc hidden"></p>
-
-        <div class="metadata-summary-bar">
-          <div class="meta-chips" id="metaChips">
-            <span class="chip">0 Meta Tags</span>
-            <span class="chip">0 OpenGraph</span>
-            <span class="chip">0 JSON-LD</span>
-          </div>
-          <button id="toggleJsonPreviewBtn" class="link-btn" type="button">
-            Preview JSON
-          </button>
-        </div>
-
-        <div id="jsonPreviewContainer" class="json-preview-container hidden">
-          <div class="json-preview-toolbar">
-            <span>Allowed Passive Metadata Payload</span>
-            <button id="copyJsonPreviewBtn" class="mini-btn" type="button">Copy JSON</button>
-          </div>
-          <pre id="jsonPreviewCode" class="json-code"></pre>
-        </div>
       </section>
 
-      <!-- Selected Text Highlight (if user highlighted text on page) -->
+      <!-- Selected Text Highlight (only shown when user highlighted text on page) -->
       <section id="selectedTextSection" class="selected-text-box hidden">
         <div class="section-label-row">
-          <label>Highlighted Selection on Page</label>
+          <label>Highlighted Selection</label>
           <button id="clearSelectionBtn" class="link-btn" type="button">Remove</button>
         </div>
         <blockquote id="selectedTextPreview" class="selected-quote"></blockquote>
       </section>
 
-      <!-- Notes & Tags Form -->
+      <!-- Simple Notes & Tags Form -->
       <form id="sendForm" class="send-form">
         <div class="form-group">
           <div class="section-label-row">
-            <label for="userNotes">Your Notes / Context for n8n</label>
-            <span class="hint-text">Ctrl+Enter to send</span>
+            <label for="userNotes">Notes</label>
+            <span class="hint-text">Optional &bull; Ctrl+Enter</span>
           </div>
           <textarea
             id="userNotes"
             rows="3"
-            placeholder="Add any notes, instructions, or context to send alongside this website's metadata..."
+            placeholder="Add any notes or context for n8n..."
           ></textarea>
         </div>
 
         <div class="form-group">
-          <label for="userTags">Quick Tags <span class="optional-tag">(optional, comma-separated)</span></label>
+          <label for="userTags">Tags <span class="optional-tag">(optional)</span></label>
           <input
             type="text"
             id="userTags"
-            placeholder="e.g. research, lead, inspiration, ai"
+            placeholder="e.g. research, lead, ai"
             autocomplete="off"
           />
         </div>
 
         <button type="submit" id="sendBtn" class="primary-send-btn">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="22" y1="2" x2="11" y2="13"></line>
             <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
           </svg>
-          <span id="sendBtnText">Send Website Data to n8n</span>
+          <span id="sendBtnText">Send to n8n</span>
         </button>
       </form>
+
+      <!-- Progressive Disclosure Bar: n8n Expression Cheatsheet & JSON Payload Preview -->
+      <section class="developer-tools">
+        <div class="disclosure-bar">
+          <button id="toggleCheatsheetBtn" class="disclosure-btn" type="button" aria-expanded="false">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
+            <span id="toggleCheatsheetText">n8n Expressions</span>
+          </button>
+          <button id="toggleJsonPreviewBtn" class="disclosure-btn" type="button" aria-expanded="false">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+            <span id="toggleJsonPreviewText">Preview JSON</span>
+          </button>
+        </div>
+
+        <!-- Drawer 1: One-Click Copy n8n Expression Cheatsheet -->
+        <div id="cheatsheetContainer" class="drawer-card hidden">
+          <div class="drawer-header">
+            <span class="drawer-title">Click any expression to copy for your n8n node</span>
+            <span id="exprCopyFeedback" class="copy-toast hidden">Copied!</span>
+          </div>
+          <div class="expr-list">
+            <button type="button" class="expr-row" data-expr="{{ $json.body.page.url }}">
+              <span class="expr-label">Page URL</span>
+              <code class="expr-code">{{ $json.body.page.url }}</code>
+            </button>
+            <button type="button" class="expr-row" data-expr="{{ $json.body.page.title }}">
+              <span class="expr-label">Page / Post Title</span>
+              <code class="expr-code">{{ $json.body.page.title }}</code>
+            </button>
+            <button type="button" class="expr-row" data-expr="{{ $json.body.openGraph.title }}">
+              <span class="expr-label">Social / OG Title</span>
+              <code class="expr-code">{{ $json.body.openGraph.title }}</code>
+            </button>
+            <button type="button" class="expr-row" data-expr="{{ $json.body.userNotes }}">
+              <span class="expr-label">Your Notes</span>
+              <code class="expr-code">{{ $json.body.userNotes }}</code>
+            </button>
+            <button type="button" class="expr-row" data-expr="{{ $json.body.userTags.join(', ') }}">
+              <span class="expr-label">Your Tags</span>
+              <code class="expr-code">{{ $json.body.userTags.join(', ') }}</code>
+            </button>
+            <button type="button" class="expr-row" data-expr="{{ $json.body.meta.description }}">
+              <span class="expr-label">Meta Description</span>
+              <code class="expr-code">{{ $json.body.meta.description }}</code>
+            </button>
+            <button type="button" class="expr-row" data-expr="{{ $json.body.selectedText }}">
+              <span class="expr-label">Highlighted Text</span>
+              <code class="expr-code">{{ $json.body.selectedText }}</code>
+            </button>
+            <button type="button" class="expr-row" data-expr="{{ $json.body.page.domain }}">
+              <span class="expr-label">Domain</span>
+              <code class="expr-code">{{ $json.body.page.domain }}</code>
+            </button>
+            <button type="button" class="expr-row" data-expr="{{ $json.body.sentAt }}">
+              <span class="expr-label">Timestamp</span>
+              <code class="expr-code">{{ $json.body.sentAt }}</code>
+            </button>
+          </div>
+          <div class="drawer-footnote">
+            Using a GET Webhook node? Use <code>$json.query.url</code> or <code>$json.query.userNotes</code>.
+          </div>
+        </div>
+
+        <!-- Drawer 2: Live JSON Payload Preview -->
+        <div id="jsonPreviewContainer" class="drawer-card hidden">
+          <div class="drawer-header">
+            <div class="meta-chips" id="metaChips">
+              <span class="chip">0 Meta</span>
+              <span class="chip">0 OpenGraph</span>
+              <span class="chip">0 JSON-LD</span>
+            </div>
+            <button id="copyJsonPreviewBtn" class="mini-btn" type="button">Copy JSON</button>
+          </div>
+          <pre id="jsonPreviewCode" class="json-code"></pre>
+        </div>
+      </section>
     </main>
 
     <!-- ==================== TAB 2: HISTORY ==================== -->
@@ -147,7 +201,7 @@
       </div>
 
       <div class="history-actions-bar">
-        <span id="historySummaryText" class="history-summary">0 items backed up locally</span>
+        <span id="historySummaryText" class="history-summary">0 items saved locally</span>
         <div class="history-action-btns">
           <button id="exportHistoryBtn" class="secondary-sm-btn" type="button" title="Download JSON backup file">
             Export JSON
@@ -176,33 +230,33 @@
               placeholder="https://your-n8n.instance/webhook/xxxx-xxxx"
               required
             />
-            <small class="help-text">Supports both Production (<code>/webhook/...</code>) and Test (<code>/webhook-test/...</code>) URLs.</small>
+            <small class="help-text">Works with Production (<code>/webhook/...</code>) and Test (<code>/webhook-test/...</code>) URLs.</small>
           </div>
 
           <div class="form-group">
             <label for="webhookMethodSelect">HTTP Method</label>
             <select id="webhookMethodSelect">
-              <option value="AUTO">Auto (Try POST first, fallback to GET if n8n node is set to GET)</option>
-              <option value="POST">POST (Full JSON body - set n8n Webhook node HTTP Method to POST)</option>
-              <option value="GET">GET (Query params - matches n8n default GET Webhook node)</option>
+              <option value="AUTO">Auto (POST with automatic GET fallback)</option>
+              <option value="POST">POST (Recommended — full JSON body)</option>
+              <option value="GET">GET (Query parameters)</option>
             </select>
           </div>
 
           <div class="form-row-2">
             <div class="form-group">
-              <label for="customHeaderNameInput">Auth Header Name <span class="optional-tag">(optional)</span></label>
+              <label for="customHeaderNameInput">Header Name <span class="optional-tag">(opt)</span></label>
               <input
                 type="text"
                 id="customHeaderNameInput"
-                placeholder="Authorization or X-API-Key"
+                placeholder="Authorization"
               />
             </div>
             <div class="form-group">
-              <label for="customHeaderValueInput">Auth Header Value <span class="optional-tag">(optional)</span></label>
+              <label for="customHeaderValueInput">Header Value <span class="optional-tag">(opt)</span></label>
               <input
                 type="password"
                 id="customHeaderValueInput"
-                placeholder="Bearer secret-token..."
+                placeholder="Bearer token..."
               />
             </div>
           </div>
@@ -210,7 +264,7 @@
           <div class="form-group checkbox-group">
             <label class="checkbox-label">
               <input type="checkbox" id="autoSendCheckbox" />
-              <span><strong>One-Click Auto-Send on Popup Open</strong> (immediately sends website data when you click the extension icon)</span>
+              <span><strong>Auto-Send on Popup Open</strong> (immediately sends when you click the extension icon)</span>
             </label>
           </div>
 
@@ -221,25 +275,25 @@
         </div>
       </form>
 
-      <!-- Local Backup & Reset Danger Zone -->
-      <div class="settings-card danger-card">
-        <h3 class="settings-section-title danger-title">Local Backup History Management</h3>
+      <!-- Local Backup & Reset Section -->
+      <div class="settings-card">
+        <h3 class="settings-section-title">Local Backup History</h3>
         <p class="help-text">
-          All sent items are automatically backed up locally on your computer. You can export your history as JSON or reset it completely.
+          All sent items are automatically backed up on your computer. Download a JSON backup or reset your local history below.
         </p>
-        <div class="settings-btn-row" style="margin-top: 10px;">
+        <div class="settings-btn-row" style="margin-top: 4px;">
           <button type="button" id="settingsExportBtn" class="secondary-btn">Download Backup (.json)</button>
-          <button type="button" id="initiateClearHistoryBtn" class="danger-btn">Reset / Delete History</button>
+          <button type="button" id="initiateClearHistoryBtn" class="danger-btn">Reset History</button>
         </div>
 
-        <!-- Two-Step Confirmation Prompt (Hidden until user clicks Reset/Delete) -->
+        <!-- Two-Step Confirmation Prompt -->
         <div id="clearConfirmBox" class="confirm-box hidden">
           <p class="confirm-warning">
-            <strong>Are you sure you want to permanently delete all <span id="confirmDeleteCount">0</span> local history items?</strong>
-            This action will reset your local backup history and cannot be undone.
+            <strong>Delete all <span id="confirmDeleteCount">0</span> local history items?</strong>
+            This permanently resets your local backup history and cannot be undone.
           </p>
           <div class="confirm-actions">
-            <button type="button" id="confirmClearHistoryBtn" class="danger-solid-btn">Yes, Permanently Delete All</button>
+            <button type="button" id="confirmClearHistoryBtn" class="danger-solid-btn">Yes, Delete All</button>
             <button type="button" id="cancelClearHistoryBtn" class="secondary-btn">Cancel</button>
           </div>
         </div>
