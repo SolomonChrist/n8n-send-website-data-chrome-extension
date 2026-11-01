@@ -15,6 +15,7 @@ const STORAGE_KEYS = {
 let currentPageData = null;
 let currentSettings = {
   webhookUrl: '',
+  webhookMethod: 'AUTO',
   customHeaderName: '',
   customHeaderValue: '',
   autoSend: false
@@ -319,6 +320,7 @@ async function loadSettingsAndHistory() {
 
   // Populate settings inputs
   document.getElementById('webhookUrlInput').value = currentSettings.webhookUrl || '';
+  document.getElementById('webhookMethodSelect').value = currentSettings.webhookMethod || 'AUTO';
   document.getElementById('customHeaderNameInput').value = currentSettings.customHeaderName || '';
   document.getElementById('customHeaderValueInput').value = currentSettings.customHeaderValue || '';
   document.getElementById('autoSendCheckbox').checked = Boolean(currentSettings.autoSend);
@@ -330,6 +332,7 @@ async function loadSettingsAndHistory() {
 
 async function saveSettings() {
   const webhookUrl = document.getElementById('webhookUrlInput').value.trim();
+  const webhookMethod = document.getElementById('webhookMethodSelect').value || 'AUTO';
   const customHeaderName = document.getElementById('customHeaderNameInput').value.trim();
   const customHeaderValue = document.getElementById('customHeaderValueInput').value.trim();
   const autoSend = document.getElementById('autoSendCheckbox').checked;
@@ -341,6 +344,7 @@ async function saveSettings() {
 
   currentSettings = {
     webhookUrl,
+    webhookMethod,
     customHeaderName,
     customHeaderValue,
     autoSend
@@ -519,6 +523,64 @@ function updateJsonPreview() {
 
 // ==================== WEBHOOK SENDING & HISTORY BACKUP ====================
 
+/**
+ * Helper to format n8n's JSON error response (especially 404 errors on test webhooks)
+ */
+function parseN8nErrorMessage(status, statusText, responseText) {
+  let baseMsg = `Webhook responded with HTTP ${status} (${statusText || 'Error'}).`;
+  if (!responseText) return baseMsg;
+
+  try {
+    const parsed = JSON.parse(responseText);
+    const n8nMsg = parsed.message || '';
+    const n8nHint = parsed.hint || '';
+    if (n8nMsg || n8nHint) {
+      return `HTTP ${status}: ${n8nMsg}${n8nHint ? ' — ' + n8nHint : ''}`;
+    }
+  } catch (_) {
+    // Not JSON
+  }
+  return baseMsg;
+}
+
+/**
+ * Builds a GET URL with query parameters for n8n Webhook nodes left on default GET method
+ */
+function buildGetWebhookUrl(webhookUrl, payload) {
+  const urlObj = new URL(webhookUrl);
+  urlObj.searchParams.set('event', payload.event || 'website_capture');
+  urlObj.searchParams.set('sentAt', payload.sentAt || new Date().toISOString());
+  urlObj.searchParams.set('title', payload.page?.title || '');
+  urlObj.searchParams.set('url', payload.page?.url || '');
+  urlObj.searchParams.set('domain', payload.page?.domain || '');
+  urlObj.searchParams.set('description', payload.meta?.description || '');
+  urlObj.searchParams.set('userNotes', payload.userNotes || '');
+  urlObj.searchParams.set('userTags', (payload.userTags || []).join(','));
+  urlObj.searchParams.set('selectedText', payload.selectedText || '');
+  urlObj.searchParams.set('payload_json', JSON.stringify(payload));
+  return urlObj.toString();
+}
+
+async function executeSingleWebhookRequest(webhookUrl, method, payload, headers, signal) {
+  if (method === 'GET') {
+    const getUrl = buildGetWebhookUrl(webhookUrl, payload);
+    const getHeaders = { ...headers };
+    delete getHeaders['Content-Type'];
+    return fetch(getUrl, {
+      method: 'GET',
+      headers: getHeaders,
+      signal
+    });
+  }
+
+  return fetch(webhookUrl, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(payload),
+    signal
+  });
+}
+
 async function sendPayloadToWebhook(payload, webhookUrl) {
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), 12000); // 12s timeout
@@ -532,32 +594,47 @@ async function sendPayloadToWebhook(payload, webhookUrl) {
     headers[currentSettings.customHeaderName] = currentSettings.customHeaderValue;
   }
 
+  const preferredMethod = currentSettings.webhookMethod || 'AUTO';
   const startTime = performance.now();
-  try {
-    const response = await fetch(webhookUrl, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
 
+  try {
+    const initialMethod = preferredMethod === 'GET' ? 'GET' : 'POST';
+    let response = await executeSingleWebhookRequest(webhookUrl, initialMethod, payload, headers, controller.signal);
+    let responseText = await response.text();
+    let usedMethod = initialMethod;
+
+    // If AUTO mode is enabled and POST returned 404 because n8n Webhook node is configured for GET (n8n's default),
+    // automatically retry immediately using GET so it works seamlessly!
+    if (
+      !response.ok &&
+      response.status === 404 &&
+      preferredMethod === 'AUTO' &&
+      initialMethod === 'POST' &&
+      /not registered for POST/i.test(responseText)
+    ) {
+      response = await executeSingleWebhookRequest(webhookUrl, 'GET', payload, headers, controller.signal);
+      responseText = await response.text();
+      usedMethod = 'GET';
+    }
+
+    clearTimeout(timeoutId);
     const durationMs = Math.round(performance.now() - startTime);
-    const responseText = await response.text();
 
     if (!response.ok) {
       return {
         ok: false,
+        method: usedMethod,
         status: response.status,
         statusText: response.statusText,
         durationMs,
         responseBody: responseText.slice(0, 500),
-        errorMessage: `Webhook responded with HTTP ${response.status} (${response.statusText || 'Error'}).`
+        errorMessage: parseN8nErrorMessage(response.status, response.statusText, responseText)
       };
     }
 
     return {
       ok: true,
+      method: usedMethod,
       status: response.status,
       statusText: response.statusText || 'OK',
       durationMs,
@@ -575,6 +652,7 @@ async function sendPayloadToWebhook(payload, webhookUrl) {
     }
     return {
       ok: false,
+      method: preferredMethod,
       status: 0,
       statusText: 'Unreachable',
       durationMs,
@@ -647,7 +725,8 @@ async function testWebhookEndpoint() {
     return;
   }
 
-  // Temporarily sync header fields for test
+  // Temporarily sync header & method fields for test
+  currentSettings.webhookMethod = document.getElementById('webhookMethodSelect').value || 'AUTO';
   currentSettings.customHeaderName = document.getElementById('customHeaderNameInput').value.trim();
   currentSettings.customHeaderValue = document.getElementById('customHeaderValueInput').value.trim();
 
