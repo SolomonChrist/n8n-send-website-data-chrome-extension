@@ -19,29 +19,47 @@ A fast, lightweight Chrome Extension (Manifest V3) that sends **passive, non-scr
 
 ## Key Features
 
-- **One-Click Website Metadata + Notes to n8n**: Click the pinned extension icon on any open tab, add optional notes or tags, and send everything as clean JSON to your n8n Webhook (`POST`). Includes an optional **One-Click Auto-Send** mode in Settings.
+- **One-Click Website Metadata + Notes to n8n**: Click the pinned extension icon on any open tab, add optional notes or tags, and send everything as clean JSON to your n8n Webhook (`POST` with automatic `GET` fallback). Includes an optional **Auto-Send on Popup Open** toggle in Settings.
 - **100% Passive & Zero Bot/Scraping Footprint**:
   - **Zero extra HTTP requests to the website**: Never crawls links, never fetches background pages, and never triggers anti-bot or rate-limit protections.
   - **On-Demand `activeTab` only**: Runs only when you click the extension icon and reads standard `<head>` metadata (`title`, URL, canonical URL, `<meta>` tags, OpenGraph `og:*`, Twitter Card `twitter:*`, RSS/Atom feed links, and public `application/ld+json` Schema.org metadata) plus any text you actively highlighted on the page.
-- **Clear Webhook Delivery Status**:
-  - Alerts you immediately when your n8n webhook succeeds (`HTTP 200 OK` + response time) or if the webhook is unreachable, offline, or not listening.
-  - Includes a **Test Webhook** button in Settings and optional custom Authentication Header support (`Authorization`, `X-API-Key`, etc.).
+- **Built-In "Copy All for AI" & n8n Expression Cheatsheet**:
+  - Click **`n8n Expressions`** to copy individual expressions (`{{ $json.body.page.canonicalUrl }}`, `{{ $json.body.userNotes }}`, etc.) or click **`Copy All for AI`** to copy a complete, ready-to-paste prompt block for your next n8n AI Agent / OpenAI / Anthropic node.
+- **URL Query Parameter Privacy & Deduplication**:
+  - Automatically strips tracking parameters (`utm_*`, `fbclid`, `gclid`, `s`, etc.) from `page.canonicalUrl` (and `page.url` by default), with a setting or 1-click **`Strip ?params`** button to strip **all** query parameters (such as reset tokens or signed share links) before sending to n8n or saving to local history.
 - **Automatic Local Backup History**:
-  - Every send attempt (both `Sent` and `Failed`) is automatically backed up to `chrome.storage.local` on your system.
+  - Every send attempt (both `Sent` and `Failed`) is automatically backed up to `chrome.storage.local` on your system (with secret webhook URL paths masked in history exports).
   - Browse, search, inspect the exact JSON payload, **Resend/Retry** any item to n8n, or **Export** your entire history as a `.json` backup file (`n8n-website-history-backup-YYYY-MM-DD.json`).
-  - Includes a **Full-Page History Viewer** (`history.html`) and a **Reset / Delete History** option in Settings protected by an explicit two-step confirmation prompt.
 
 ---
 
-## Setting Up Your n8n Workflow
+## Setting Up & Securing Your n8n Workflow
 
 1. In **n8n**, add a **Webhook** trigger node to your workflow:
-   - **HTTP Method**: `POST`
+   - **HTTP Method**: `POST` (recommended for full nested JSON body).
    - **Path**: e.g. `website-capture`
-   - Copy either the **Test URL** (while building) or **Production URL** (when workflow is active).
-2. Click the pinned **AI n8n Send Website Data** icon in Chrome and open the **Settings** tab.
-3. Paste your **n8n Webhook URL** and click **Save Settings**.
+2. **Secure Your Production Webhook (Highly Recommended)**:
+   - Without authentication, anyone who discovers your Production Webhook URL can send `POST` requests to your workflow.
+   - In your n8n Webhook node, set **Authentication** to **`Header Auth`**, and create a credential with a **Name** (e.g., `X-Webhook-Secret` or `Authorization`) and a secret **Value**.
+   - In the Chrome Extension's **Settings** tab, enter that exact same **Header Name** and **Header Value**.
+3. Copy either the **Test URL** (while building) or **Production URL** (when workflow is active), paste it into the extension's **Settings** tab, and click **Save Settings**.
 4. Click **Test Webhook** to verify connectivity with n8n.
+
+---
+
+## Best Practices for "Second Brain" & Knowledge Base Builders
+
+1. **Key Records on `canonicalUrl` (Prevent Duplicates)**:
+   - The same article or post shared from different sources often carries different query parameters. Key your database / Notion / Airtable / Supabase upsert on **`{{ $json.body.page.canonicalUrl }}`** instead of `page.url`.
+   - The extension automatically strips tracking parameters from `canonicalUrl` so re-sending the same page cleanly updates your notes and tags on the existing record rather than creating duplicate entries.
+2. **Capturing X (Twitter) & LinkedIn Posts (`selectedText`)**:
+   - Because this extension is 100% passive and never scrapes page bodies, it sends `<head>` metadata plus whatever text you highlight on the page (`selectedText`).
+   - While articles and blogs usually have rich `<meta>` and OpenGraph descriptions, **X and LinkedIn posts often have thin or generic meta tags**. When capturing a post on X or LinkedIn, **highlight the post text on the page before clicking the extension icon** so the full post content is sent inside `{{ $json.body.selectedText }}`.
+3. **Stripping Sensitive Query Parameters (`?token=...`, Signed URLs)**:
+   - In **Settings &rarr; URL Query Parameter Privacy**, you can choose between:
+     - **Strip Tracking Params Only (Default)**: Removes `utm_*`, `fbclid`, `gclid`, `s`, etc., while preserving functional params like YouTube `?v=...`.
+     - **Strip ALL Query Params**: Removes all `?query` strings and `#hash` fragments before sending to n8n and before saving to local history.
+   - You can also click the **`Strip ?params`** pill directly on the popup's Website Card anytime a URL has query parameters.
 
 ---
 
@@ -51,26 +69,25 @@ A fast, lightweight Chrome Extension (Manifest V3) that sends **passive, non-scr
 {
   "event": "website_capture",
   "source": "ai-n8n-send-website-chrome-extension",
-  "sentAt": "2026-10-31T01:00:00.000Z",
+  "sentAt": "2026-11-05T01:00:00.000Z",
   "userNotes": "Great reference for our AI automation pipeline",
   "userTags": ["ai", "n8n", "research"],
   "selectedText": "Optional text highlighted by the user on the page",
   "page": {
     "title": "Example Website Title",
-    "url": "https://example.com/articles/automation?utm_source=newsletter",
+    "url": "https://example.com/articles/automation",
     "canonicalUrl": "https://example.com/articles/automation",
     "domain": "example.com",
     "origin": "https://example.com",
     "pathname": "/articles/automation",
     "hash": "",
-    "queryParams": {
-      "utm_source": "newsletter"
-    },
+    "queryParams": {},
     "language": "en",
     "charset": "UTF-8",
     "referrer": "https://google.com/",
     "favicon": "https://example.com/favicon.ico",
-    "lastModified": "10/31/2026 00:55:00"
+    "lastModified": "11/05/2026 00:55:00",
+    "spaNavigationDetected": false
   },
   "meta": {
     "description": "Standard meta description provided by the page.",

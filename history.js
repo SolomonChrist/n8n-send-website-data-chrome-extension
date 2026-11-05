@@ -327,10 +327,20 @@ function exportJson() {
     showBanner('warning', 'Empty History', 'No items to export.');
     return;
   }
+  const sanitizedItems = historyItems.map((item) => {
+    const copy = { ...item };
+    if (copy.webhookUrl) {
+      try {
+        copy.webhookHost = `${new URL(copy.webhookUrl).origin}/webhook/***`;
+      } catch (_) {}
+      delete copy.webhookUrl;
+    }
+    return copy;
+  });
   const blob = new Blob([JSON.stringify({
     exportedAt: new Date().toISOString(),
-    totalItems: historyItems.length,
-    items: historyItems
+    totalItems: sanitizedItems.length,
+    items: sanitizedItems
   }, null, 2)], { type: 'application/json' });
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');

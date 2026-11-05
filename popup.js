@@ -16,12 +16,27 @@ const MAX_HISTORY_ITEMS = 200;
 const HEADER_NAME_REGEX = /^[!#$%&'*+\-.^_`|~0-9A-Za-z]+$/;
 const FORBIDDEN_HEADERS = new Set(['host', 'cookie', 'content-length', 'origin', 'referer']);
 
+/**
+ * Common tracking & share parameters to strip from canonicalUrl (and page.url when stripQueryMode === 'tracking')
+ * so Second Brain / Knowledge Base records deduplicate cleanly.
+ */
+const TRACKING_PARAM_EXACT = new Set([
+  'fbclid', 'gclid', 'dclid', 'gbraid', 'wbraid', 'msclkid', 'twclid', 'ttclid', 'igshid',
+  'mc_cid', 'mc_eid', 'mkt_tok', '_hsenc', '_hsmi', 'hsCtaTracking', 'vero_id', 'oly_enc_id',
+  'oly_anon_id', 'rb_clickid', 's_kwcid', 'yclid', 'ref', 'ref_src', 'ref_url', 'source',
+  's', 't', 'si', 'feature', 'spm', 'scm'
+]);
+
+let rawPageData = null;
 let currentPageData = null;
+let stripAllForCurrentTab = false;
+
 let currentSettings = {
   webhookUrl: '',
   webhookMethod: 'AUTO',
   customHeaderName: '',
   customHeaderValue: '',
+  stripQueryMode: 'tracking', // 'tracking' | 'all' | 'none'
   autoSend: false
 };
 let historyItems = [];
@@ -53,6 +68,63 @@ function sanitizeHttpUrl(rawUrl) {
 }
 
 /**
+ * Guardrail: Mask webhook URL so the secret path/token is never stored in plain text inside local history or JSON exports
+ */
+function maskWebhookUrl(rawUrl) {
+  try {
+    const parsed = new URL(String(rawUrl || ''));
+    return `${parsed.origin}/webhook/***`;
+  } catch (_) {
+    return 'configured-webhook';
+  }
+}
+
+/**
+ * Helper: Check if a query parameter key is a known tracking parameter
+ */
+function isTrackingParam(key) {
+  const lower = String(key || '').toLowerCase();
+  if (
+    lower.startsWith('utm_') ||
+    lower.startsWith('pk_') ||
+    lower.startsWith('mtm_') ||
+    lower.startsWith('hsa_') ||
+    lower.startsWith('_ga') ||
+    lower.startsWith('_gl')
+  ) {
+    return true;
+  }
+  return TRACKING_PARAM_EXACT.has(lower);
+}
+
+/**
+ * Helper: Clean a URL according to mode ('all' strips all query params & hash, 'tracking' strips tracking params & hash, 'none' keeps all)
+ */
+function cleanUrlByMode(rawUrl, mode) {
+  if (!rawUrl) return '';
+  try {
+    const u = new URL(rawUrl);
+    if (mode === 'all') {
+      u.search = '';
+      u.hash = '';
+      return u.toString();
+    }
+    if (mode === 'tracking') {
+      const keysToDelete = [];
+      u.searchParams.forEach((_, k) => {
+        if (isTrackingParam(k)) keysToDelete.push(k);
+      });
+      keysToDelete.forEach((k) => u.searchParams.delete(k));
+      u.hash = '';
+      return u.toString();
+    }
+    return u.toString();
+  } catch (_) {
+    return rawUrl;
+  }
+}
+
+/**
  * Guardrail: Validate custom HTTP header names & strip control characters from values
  */
 function isValidHeaderName(name) {
@@ -74,7 +146,6 @@ async function safeSaveHistory(items) {
   try {
     await chrome.storage.local.set({ [STORAGE_KEYS.HISTORY]: items });
   } catch (_) {
-    // Quota exceeded fallback: prune oldest half and retry
     items.length = Math.max(10, Math.floor(items.length / 2));
     await chrome.storage.local.set({ [STORAGE_KEYS.HISTORY]: items });
   }
@@ -124,7 +195,6 @@ function extractAllowedWebsiteMetadata() {
   const ogMatchesCurrent = !ogUrl || ogUrl.split('#')[0] === currentUrlNoHash;
   const spaStaleMetaDetected = !canonicalMatchesCurrent || !ogMatchesCurrent;
 
-  // Prefer live window.location.href if SPA client-side routing left a stale canonical link
   const canonicalUrl = (!spaStaleMetaDetected && rawCanonicalUrl) ? rawCanonicalUrl : window.location.href;
 
   const iconEl =
@@ -225,6 +295,47 @@ function extractAllowedWebsiteMetadata() {
   };
 }
 
+/**
+ *Applies URL Query Parameter Privacy & canonicalUrl deduplication normalization
+ */
+function applyUrlPrivacyRules() {
+  if (!rawPageData) return;
+
+  // Deep clone rawPageData so user can toggle settings or click "Strip ?params" non-destructively
+  const cloned = JSON.parse(JSON.stringify(rawPageData));
+  const effectiveMode = stripAllForCurrentTab ? 'all' : (currentSettings.stripQueryMode || 'tracking');
+
+  // 1. Clean page.url according to effectiveMode ('tracking', 'all', or 'none')
+  cloned.page.url = cleanUrlByMode(cloned.page.url, effectiveMode);
+
+  // 2. Always normalize page.canonicalUrl so tracking params are stripped (or all params if effectiveMode === 'all')
+  const canonicalMode = effectiveMode === 'all' ? 'all' : 'tracking';
+  cloned.page.canonicalUrl = cleanUrlByMode(cloned.page.canonicalUrl || cloned.page.url, canonicalMode);
+
+  // 3. Rebuild page.queryParams and hash from the cleaned page.url
+  try {
+    const parsedClean = new URL(cloned.page.url);
+    const cleanedParams = {};
+    parsedClean.searchParams.forEach((val, key) => {
+      cleanedParams[key] = val;
+    });
+    cloned.page.queryParams = cleanedParams;
+    cloned.page.hash = parsedClean.hash || '';
+  } catch (_) {
+    if (effectiveMode === 'all') {
+      cloned.page.queryParams = {};
+      cloned.page.hash = '';
+    }
+  }
+
+  // 4. Clean referrer query params if stripping all
+  if (effectiveMode === 'all' && cloned.page.referrer) {
+    cloned.page.referrer = cleanUrlByMode(cloned.page.referrer, 'all');
+  }
+
+  currentPageData = cloned;
+}
+
 // ==================== INITIALIZATION ====================
 
 document.addEventListener('DOMContentLoaded', async () => {
@@ -270,6 +381,24 @@ function switchTab(tabId) {
 function setupEventListeners() {
   // Close status banner
   document.getElementById('closeBannerBtn').addEventListener('click', hideStatusBanner);
+
+  // Quick 1-click "Strip ?params" button on the Website Card
+  document.getElementById('stripQueryQuickBtn').addEventListener('click', () => {
+    stripAllForCurrentTab = true;
+    applyUrlPrivacyRules();
+    renderCurrentSiteCard();
+    showStatusBanner('success', 'Query Params Stripped', 'All query parameters and tokens have been removed from the URL.');
+  });
+
+  // Re-check highlighted text on active tab (for X / LinkedIn thin-meta hint)
+  document.getElementById('refreshSelectionBtn').addEventListener('click', async () => {
+    await inspectActiveTab();
+    if (currentPageData && currentPageData.selectedText) {
+      showStatusBanner('success', 'Highlight Captured!', 'Your selected post text is now included in the payload.');
+    } else {
+      showStatusBanner('warning', 'No Highlight Detected', 'Select/highlight the post text on the webpage first, then click the extension icon.');
+    }
+  });
 
   // Toggle n8n Expressions Cheatsheet Drawer
   document.getElementById('toggleCheatsheetBtn').addEventListener('click', () => {
@@ -371,11 +500,9 @@ function setupEventListeners() {
 
   // Clear selected text if user doesn't want it included
   document.getElementById('clearSelectionBtn').addEventListener('click', () => {
-    if (currentPageData) {
-      currentPageData.selectedText = '';
-    }
-    document.getElementById('selectedTextSection').classList.add('hidden');
-    updateJsonPreview();
+    if (rawPageData) rawPageData.selectedText = '';
+    if (currentPageData) currentPageData.selectedText = '';
+    renderCurrentSiteCard();
   });
 
   // Update live JSON preview when notes or tags change
@@ -469,6 +596,7 @@ async function loadSettingsAndHistory() {
   document.getElementById('webhookMethodSelect').value = currentSettings.webhookMethod || 'AUTO';
   document.getElementById('customHeaderNameInput').value = currentSettings.customHeaderName || '';
   document.getElementById('customHeaderValueInput').value = currentSettings.customHeaderValue || '';
+  document.getElementById('stripQueryModeSelect').value = currentSettings.stripQueryMode || 'tracking';
   document.getElementById('autoSendCheckbox').checked = Boolean(currentSettings.autoSend);
 
   updateWebhookStatusPill();
@@ -481,6 +609,7 @@ async function saveSettings() {
   const webhookMethod = document.getElementById('webhookMethodSelect').value || 'AUTO';
   const customHeaderName = document.getElementById('customHeaderNameInput').value.trim();
   const customHeaderValue = sanitizeHeaderValue(document.getElementById('customHeaderValueInput').value);
+  const stripQueryMode = document.getElementById('stripQueryModeSelect').value || 'tracking';
   const autoSend = document.getElementById('autoSendCheckbox').checked;
 
   if (webhookUrl && !/^https?:\/\//i.test(webhookUrl)) {
@@ -492,7 +621,7 @@ async function saveSettings() {
     showStatusBanner(
       'error',
       'Invalid Auth Header Name',
-      'Header name must contain only valid HTTP token characters (e.g. Authorization or X-API-Key) without spaces or colons.'
+      'Header name must contain only valid HTTP token characters (e.g. X-Webhook-Secret or Authorization) without spaces or colons.'
     );
     return;
   }
@@ -502,12 +631,15 @@ async function saveSettings() {
     webhookMethod,
     customHeaderName,
     customHeaderValue,
+    stripQueryMode,
     autoSend
   };
 
   await chrome.storage.local.set({ [STORAGE_KEYS.SETTINGS]: currentSettings });
+  applyUrlPrivacyRules();
+  renderCurrentSiteCard();
   updateWebhookStatusPill();
-  showStatusBanner('success', 'Settings Saved', 'Your n8n webhook configuration has been saved.');
+  showStatusBanner('success', 'Settings Saved', 'Your n8n webhook and privacy settings have been saved.');
 }
 
 function updateWebhookStatusPill() {
@@ -588,20 +720,21 @@ async function inspectActiveTab() {
         );
         const results = await Promise.race([scriptPromise, timeoutPromise]);
         if (results && results[0] && results[0].result) {
-          currentPageData = results[0].result;
+          rawPageData = results[0].result;
           if (tab.favIconUrl) {
-            currentPageData.page.favicon = tab.favIconUrl;
+            rawPageData.page.favicon = tab.favIconUrl;
           }
         } else {
-          currentPageData = fallbackData;
+          rawPageData = fallbackData;
         }
       } catch (_) {
-        currentPageData = fallbackData;
+        rawPageData = fallbackData;
       }
     } else {
-      currentPageData = fallbackData;
+      rawPageData = fallbackData;
     }
 
+    applyUrlPrivacyRules();
     renderCurrentSiteCard();
   } catch (err) {
     showStatusBanner('error', 'Metadata Read Error', err.message || 'Could not read current tab info.');
@@ -614,6 +747,13 @@ function renderCurrentSiteCard() {
   const { page, meta, openGraph, structuredData, selectedText } = currentPageData;
   document.getElementById('siteTitle').textContent = page.title || 'Untitled Website';
   document.getElementById('siteUrl').textContent = page.url || '';
+
+  // Show "Strip ?params" quick button if the active URL still contains query parameters or hash
+  const stripBtn = document.getElementById('stripQueryQuickBtn');
+  const hasRemainingParams = Boolean(
+    page.url && (page.url.includes('?') || Object.keys(page.queryParams || {}).length > 0)
+  );
+  stripBtn.classList.toggle('hidden', !hasRemainingParams);
 
   const faviconEl = document.getElementById('siteFavicon');
   faviconEl.src = page.favicon || 'icons/icon48.png';
@@ -639,11 +779,24 @@ function renderCurrentSiteCard() {
     <span class="chip">${ldCount} JSON-LD</span>
   `;
 
+  // Contextual Tip for X / LinkedIn / Thin-Meta Posts when user hasn't highlighted the post text
+  const domainLower = (page.domain || '').toLowerCase();
+  const isSocialThinMetaSite =
+    domainLower === 'x.com' ||
+    domainLower.endsWith('.x.com') ||
+    domainLower === 'twitter.com' ||
+    domainLower.endsWith('.twitter.com') ||
+    domainLower === 'linkedin.com' ||
+    domainLower.endsWith('.linkedin.com');
+
+  const thinHintBox = document.getElementById('thinMetaHintBox');
   if (selectedText) {
+    thinHintBox.classList.add('hidden');
     document.getElementById('selectedTextPreview').textContent = selectedText;
     document.getElementById('selectedTextSection').classList.remove('hidden');
   } else {
     document.getElementById('selectedTextSection').classList.add('hidden');
+    thinHintBox.classList.toggle('hidden', !isSocialThinMetaSite);
   }
 
   updateJsonPreview();
@@ -709,8 +862,9 @@ function buildGetWebhookUrl(webhookUrl, payload) {
   const urlObj = new URL(webhookUrl);
   urlObj.searchParams.set('event', payload.event || 'website_capture');
   urlObj.searchParams.set('sentAt', payload.sentAt || new Date().toISOString());
-  urlObj.searchParams.set('title', payload.page?.title || '');
+  urlObj.searchParams.set('canonicalUrl', payload.page?.canonicalUrl || payload.page?.url || '');
   urlObj.searchParams.set('url', payload.page?.url || '');
+  urlObj.searchParams.set('title', payload.page?.title || '');
   urlObj.searchParams.set('domain', payload.page?.domain || '');
   urlObj.searchParams.set('description', (payload.meta?.description || '').slice(0, 500));
   urlObj.searchParams.set('userNotes', payload.userNotes || '');
@@ -867,11 +1021,11 @@ async function handleSendToN8n({ isAutoSend = false } = {}) {
     const payload = buildWebhookPayload();
     const result = await sendPayloadToWebhook(payload, currentSettings.webhookUrl);
 
-    // Always save to local backup history (whether webhook succeeded or failed)
+    // Save to local backup history with masked webhook host so raw secret webhook URLs don't sit in history exports
     const historyRecord = {
       id: crypto.randomUUID ? crypto.randomUUID() : `item_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
       timestamp: payload.sentAt,
-      webhookUrl: currentSettings.webhookUrl,
+      webhookHost: maskWebhookUrl(currentSettings.webhookUrl),
       status: result.ok ? 'success' : 'failed',
       httpStatus: result.status,
       durationMs: result.durationMs,
@@ -932,7 +1086,9 @@ async function testWebhookEndpoint() {
       source: 'ai-n8n-send-website-chrome-extension',
       sentAt: new Date().toISOString(),
       message: 'Test connection from AI n8n Send Website Data Chrome Extension',
-      page: currentPageData ? currentPageData.page : { title: 'Test Page', url: 'https://example.com' }
+      page: currentPageData
+        ? currentPageData.page
+        : { title: 'Test Page', url: 'https://example.com', canonicalUrl: 'https://example.com' }
     };
 
     const result = await sendPayloadToWebhook(testPayload, webhookUrl);
@@ -972,9 +1128,10 @@ function renderHistoryList() {
     if (!query) return true;
     const title = (item.payload?.page?.title || '').toLowerCase();
     const url = (item.payload?.page?.url || '').toLowerCase();
+    const canonical = (item.payload?.page?.canonicalUrl || '').toLowerCase();
     const notes = (item.payload?.userNotes || '').toLowerCase();
     const tags = (item.payload?.userTags || []).join(' ').toLowerCase();
-    return title.includes(query) || url.includes(query) || notes.includes(query) || tags.includes(query);
+    return title.includes(query) || url.includes(query) || canonical.includes(query) || notes.includes(query) || tags.includes(query);
   });
 
   if (filtered.length === 0) {
@@ -988,7 +1145,7 @@ function renderHistoryList() {
 
   listEl.innerHTML = filtered.slice(0, 50).map((item) => {
     const title = escapeHtml(item.payload?.page?.title || 'Untitled Website');
-    const rawUrl = item.payload?.page?.url || '';
+    const rawUrl = item.payload?.page?.canonicalUrl || item.payload?.page?.url || '';
     const safeHref = escapeHtml(sanitizeHttpUrl(rawUrl));
     const displayUrl = escapeHtml(rawUrl);
     const notes = escapeHtml(item.payload?.userNotes || '');
@@ -1060,6 +1217,8 @@ async function retrySendHistoryItem(itemId) {
   item.errorMessage = result.errorMessage;
   item.responseBody = result.responseBody;
   item.lastRetriedAt = new Date().toISOString();
+  delete item.webhookUrl;
+  item.webhookHost = maskWebhookUrl(targetWebhook);
 
   await safeSaveHistory(historyItems);
   renderHistoryList();
@@ -1089,11 +1248,21 @@ function exportHistoryToJsonFile() {
     return;
   }
 
+  // Redact any legacy unmasked webhookUrl before exporting to JSON
+  const sanitizedItems = historyItems.map((item) => {
+    const copy = { ...item };
+    if (copy.webhookUrl) {
+      copy.webhookHost = maskWebhookUrl(copy.webhookUrl);
+      delete copy.webhookUrl;
+    }
+    return copy;
+  });
+
   const exportObject = {
     exportedAt: new Date().toISOString(),
     extension: 'ai-n8n-send-website-chrome-extension',
-    totalItems: historyItems.length,
-    items: historyItems
+    totalItems: sanitizedItems.length,
+    items: sanitizedItems
   };
 
   const blob = new Blob([JSON.stringify(exportObject, null, 2)], { type: 'application/json' });
@@ -1108,7 +1277,7 @@ function exportHistoryToJsonFile() {
   a.remove();
   URL.revokeObjectURL(url);
 
-  showStatusBanner('success', 'Backup Exported', `Downloaded ${historyItems.length} history item(s) as JSON.`);
+  showStatusBanner('success', 'Backup Exported', `Downloaded ${sanitizedItems.length} history item(s) as JSON.`);
 }
 
 // ==================== STATUS BANNER ====================

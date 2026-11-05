@@ -59,10 +59,23 @@
           <img id="siteFavicon" class="site-favicon" src="icons/icon48.png" alt="Favicon" />
           <div class="site-info">
             <h2 id="siteTitle" class="site-title">Reading active tab...</h2>
-            <p id="siteUrl" class="site-url">https://...</p>
+            <div class="site-url-row">
+              <p id="siteUrl" class="site-url">https://...</p>
+              <button id="stripQueryQuickBtn" class="mini-pill-btn hidden" type="button" title="Remove query parameters (tokens, tracking params) from this URL before sending and saving to history">
+                Strip ?params
+              </button>
+            </div>
           </div>
         </div>
         <p id="siteDescription" class="site-desc hidden"></p>
+      </section>
+
+      <!-- Contextual Tip for X / LinkedIn / Thin-Meta Pages when nothing is highlighted -->
+      <section id="thinMetaHintBox" class="thin-meta-hint hidden">
+        <div class="thin-meta-hint-row">
+          <span><strong>Tip for X / LinkedIn:</strong> Highlight the post text on the page first so the full post content is captured in <code>selectedText</code>.</span>
+          <button id="refreshSelectionBtn" class="mini-btn" type="button" title="Re-read highlighted text from the active tab">Re-check</button>
+        </div>
       </section>
 
       <!-- Selected Text Highlight (only shown when user highlighted text on page) -->
@@ -134,8 +147,12 @@
             </div>
           </div>
           <div class="expr-list">
+            <button type="button" class="expr-row" data-expr="{{ $json.body.page.canonicalUrl }}">
+              <span class="expr-label">Canonical URL (Dedupe Key)</span>
+              <code class="expr-code">{{ $json.body.page.canonicalUrl }}</code>
+            </button>
             <button type="button" class="expr-row" data-expr="{{ $json.body.page.url }}">
-              <span class="expr-label">Page URL</span>
+              <span class="expr-label">Full Page URL</span>
               <code class="expr-code">{{ $json.body.page.url }}</code>
             </button>
             <button type="button" class="expr-row" data-expr="{{ $json.body.page.title }}">
@@ -145,6 +162,10 @@
             <button type="button" class="expr-row" data-expr="{{ $json.body.openGraph.title }}">
               <span class="expr-label">Social / OG Title</span>
               <code class="expr-code">{{ $json.body.openGraph.title }}</code>
+            </button>
+            <button type="button" class="expr-row" data-expr="{{ $json.body.selectedText }}">
+              <span class="expr-label">Highlighted Text</span>
+              <code class="expr-code">{{ $json.body.selectedText }}</code>
             </button>
             <button type="button" class="expr-row" data-expr="{{ $json.body.userNotes }}">
               <span class="expr-label">Your Notes</span>
@@ -157,10 +178,6 @@
             <button type="button" class="expr-row" data-expr="{{ $json.body.meta.description }}">
               <span class="expr-label">Meta Description</span>
               <code class="expr-code">{{ $json.body.meta.description }}</code>
-            </button>
-            <button type="button" class="expr-row" data-expr="{{ $json.body.selectedText }}">
-              <span class="expr-label">Highlighted Text</span>
-              <code class="expr-code">{{ $json.body.selectedText }}</code>
             </button>
             <button type="button" class="expr-row" data-expr="{{ $json.body.page.domain }}">
               <span class="expr-label">Domain</span>
@@ -180,18 +197,19 @@
               <span>Ready-to-Paste n8n AI Node Block (Copy &amp; Paste)</span>
               <button id="copyAiTemplateBtn" class="mini-btn" type="button">Copy Block</button>
             </div>
-            <textarea id="allExpressionsTextarea" class="all-expr-textarea" rows="5" readonly>Website URL: {{ $json.body.page.url }}
+            <textarea id="allExpressionsTextarea" class="all-expr-textarea" rows="5" readonly>Canonical URL (Dedupe Key): {{ $json.body.page.canonicalUrl }}
+Website URL: {{ $json.body.page.url }}
 Page Title: {{ $json.body.page.title }}
 Social/OG Title: {{ $json.body.openGraph.title }}
+Highlighted Text: {{ $json.body.selectedText }}
 User Notes: {{ $json.body.userNotes }}
 User Tags: {{ $json.body.userTags.join(', ') }}
 Meta Description: {{ $json.body.meta.description }}
-Highlighted Text: {{ $json.body.selectedText }}
 Domain: {{ $json.body.page.domain }}
 Sent At: {{ $json.body.sentAt }}</textarea>
           </div>
           <div class="drawer-footnote">
-            Using a GET Webhook node? Use <code>$json.query.url</code> or <code>$json.query.userNotes</code>.
+            Second Brain tip: Key your database records on <code>canonicalUrl</code> so resends update notes/tags instead of creating duplicates.
           </div>
         </div>
 
@@ -270,21 +288,33 @@ Sent At: {{ $json.body.sentAt }}</textarea>
 
           <div class="form-row-2">
             <div class="form-group">
-              <label for="customHeaderNameInput">Header Name <span class="optional-tag">(opt)</span></label>
+              <label for="customHeaderNameInput">Header Name <span class="optional-tag">(rec)</span></label>
               <input
                 type="text"
                 id="customHeaderNameInput"
-                placeholder="Authorization"
+                placeholder="X-Webhook-Secret"
               />
             </div>
             <div class="form-group">
-              <label for="customHeaderValueInput">Header Value <span class="optional-tag">(opt)</span></label>
+              <label for="customHeaderValueInput">Header Value <span class="optional-tag">(rec)</span></label>
               <input
                 type="password"
                 id="customHeaderValueInput"
-                placeholder="Bearer token..."
+                placeholder="Your secret value..."
               />
             </div>
+          </div>
+          <small class="help-text" style="margin-top: -4px;">
+            <strong>Security Tip:</strong> In your n8n Webhook node, set <strong>Authentication &rarr; Header Auth</strong> with this same Header Name &amp; Value so your Production URL isn't publicly open.
+          </small>
+
+          <div class="form-group">
+            <label for="stripQueryModeSelect">URL Query Parameter Privacy</label>
+            <select id="stripQueryModeSelect">
+              <option value="tracking">Strip Tracking Params Only (utm_*, fbclid, gclid, s, etc.)</option>
+              <option value="all">Strip ALL Query Params (removes ?tokens, signed params, &amp; query strings)</option>
+              <option value="none">Keep All Query Params on page.url (canonicalUrl still strips tracking)</option>
+            </select>
           </div>
 
           <div class="form-group checkbox-group">
